@@ -4,11 +4,8 @@
 # It will automatically prompt for sudo if not run as root.
 #
 
-# Exit immediately if a command exits with a non-zero status.
-set -e
-
-# --- Configuration ---
 # Check for root privileges and re-launch with sudo if necessary.
+# This must happen before set -e so that a failed sudo attempt exits cleanly.
 if [ "$(id -u)" -ne 0 ]; then
   echo "This script requires root privileges to manage systemd services."
   echo "Please enter your password to continue."
@@ -18,6 +15,9 @@ if [ "$(id -u)" -ne 0 ]; then
   exit $?
 fi
 
+# Exit immediately if a command exits with a non-zero status, treat unset
+# variables as errors, and propagate pipe failures.
+set -euo pipefail
 
 # Colors and formatting
 GREEN='\033[0;32m'
@@ -27,9 +27,12 @@ RED='\033[0;31m'
 NC='\033[0m'     # No Color
 BOLD='\033[1m'
 
-# Service file paths
+# Service file path
 SERVICE_FILE_PATH="/etc/systemd/system/ollama.service"
-BACKUP_FILE_PATH="/tmp/ollama.service.bak"
+
+# Use a private temporary directory so the backup is not world-readable.
+BACKUP_DIR="$(mktemp -d)"
+BACKUP_FILE_PATH="${BACKUP_DIR}/ollama.service.bak"
 
 # --- Functions ---
 # Function to print styled status messages
@@ -38,8 +41,20 @@ print_status() {
   echo -e "${BOLD}${2}${1}${NC}"
 }
 
+# Cleanup: remove the temporary backup directory on exit (success or failure).
+cleanup() {
+  rm -rf "$BACKUP_DIR"
+}
+trap cleanup EXIT
+
 # --- Main Script ---
 print_status "🚀 Starting Ollama upgrade process..." "$BLUE"
+
+# Show the current version so the user can confirm the upgrade delta.
+if command -v ollama &>/dev/null; then
+  CURRENT_VERSION="$(ollama --version 2>&1 || true)"
+  print_status "ℹ️  Current version: ${CURRENT_VERSION}" "$BLUE"
+fi
 
 # Step 1: Backup current service file (if it exists)
 if [ -f "$SERVICE_FILE_PATH" ]; then
@@ -47,8 +62,16 @@ if [ -f "$SERVICE_FILE_PATH" ]; then
   # Use -p to preserve permissions and ownership
   cp -p "$SERVICE_FILE_PATH" "$BACKUP_FILE_PATH"
   print_status "✅ Service configuration backed up to $BACKUP_FILE_PATH" "$GREEN"
+
+  # Remember whether the service was enabled so we can restore that state.
+  if systemctl is-enabled --quiet ollama.service 2>/dev/null; then
+    SERVICE_WAS_ENABLED=true
+  else
+    SERVICE_WAS_ENABLED=false
+  fi
 else
   print_status "ℹ️ No existing service file found to back up. A new one will be created." "$BLUE"
+  SERVICE_WAS_ENABLED=false
 fi
 
 # Step 2: Stop Ollama service
@@ -70,12 +93,18 @@ print_status "✅ Latest Ollama version installed." "$GREEN"
 if [ -f "$BACKUP_FILE_PATH" ]; then
   print_status "🔄 Restoring your custom service configuration..." "$YELLOW"
   # The installer might start the service, so stop it first
-  systemctl stop ollama.service
+  if systemctl is-active --quiet ollama.service; then
+    systemctl stop ollama.service
+  fi
   # Use -p to preserve permissions and ownership
   cp -p "$BACKUP_FILE_PATH" "$SERVICE_FILE_PATH"
   print_status "✅ Custom service configuration restored." "$GREEN"
-  # Clean up the backup file
-  rm "$BACKUP_FILE_PATH"
+
+  # Re-enable the service if it was enabled before the upgrade.
+  if [ "$SERVICE_WAS_ENABLED" = true ]; then
+    systemctl enable ollama.service
+    print_status "✅ Service re-enabled." "$GREEN"
+  fi
 fi
 
 # Step 5: Reload systemd and start Ollama
