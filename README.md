@@ -40,12 +40,13 @@ This script automates the process of upgrading Ollama while ensuring that your c
 
 ## 📝 What the Script Does
 
-1. Stops the running Ollama service
-2. Backs up your custom service configuration
-3. Downloads and installs the latest version of Ollama
-4. Restores your custom service configuration
-5. Reloads systemd and restarts Ollama
-6. Verifies the installation by checking available models and running processes
+1. Displays the currently installed Ollama version
+2. Backs up your custom service configuration (if it exists)
+3. Stops the running Ollama service
+4. Downloads and installs the latest version of Ollama
+5. Restores your custom service configuration and re-enables the service if it was enabled
+6. Reloads systemd and restarts Ollama
+7. Verifies the installation by printing the new Ollama version
 
 ## ⚠️ Important Notes
 
@@ -67,4 +68,4 @@ If you have any questions or suggestions, please open an issue or contact phreck
 
 ---
 
-*Last updated: April 11, 2025*
+*Last updated: April 17, 2026*
