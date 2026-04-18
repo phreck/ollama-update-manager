@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily check for Ollama updates
+
+[Timer]
+# Run once per day. If the system was off when the timer would have fired,
+# run it at the next opportunity (Persistent=true).
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Check for Ollama updates and upgrade if available
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/check_ollama_update --auto-upgrade --silent
+# Allow the upgrade sub-script to acquire root via sudo internally.
+# Running as root here avoids a password prompt in a headless context.
+User=root
