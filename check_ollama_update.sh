@@ -83,9 +83,23 @@ strip_v() {
 
 # ---------------------------------------------------------------------------
 # Locate upgrade script (same directory as this script)
+# Supports both naming styles:
+#   - upgrade_ollama      (installed by install_update_service.sh)
+#   - upgrade_ollama.sh   (repository filename)
 # ---------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-UPGRADE_SCRIPT="${SCRIPT_DIR}/upgrade_ollama.sh"
+UPGRADE_SCRIPT=""
+UPGRADE_CANDIDATES=(
+  "${SCRIPT_DIR}/upgrade_ollama"
+  "${SCRIPT_DIR}/upgrade_ollama.sh"
+)
+
+for candidate in "${UPGRADE_CANDIDATES[@]}"; do
+  if [ -f "$candidate" ]; then
+    UPGRADE_SCRIPT="$candidate"
+    break
+  fi
+done
 
 # ---------------------------------------------------------------------------
 # Step 1 – Confirm Ollama is installed
@@ -163,16 +177,20 @@ if [ "$AUTO_UPGRADE" = false ]; then
 fi
 
 # --- Auto-upgrade path ---
-if [ ! -f "$UPGRADE_SCRIPT" ]; then
-  error "❌ upgrade_ollama.sh not found at: ${UPGRADE_SCRIPT}"
-  error "   Place check_ollama_update.sh and upgrade_ollama.sh in the same directory."
+if [ -z "$UPGRADE_SCRIPT" ]; then
+  error "❌ Upgrade script not found. Checked:"
+  for candidate in "${UPGRADE_CANDIDATES[@]}"; do
+    error "   - ${candidate}"
+  done
+  error "   Place check_ollama_update.sh and upgrade_ollama(.sh) in the same directory."
   exit 2
 fi
 
 if [ ! -x "$UPGRADE_SCRIPT" ]; then
-  error "❌ upgrade_ollama.sh is not executable. Run: chmod +x ${UPGRADE_SCRIPT}"
+  error "❌ Upgrade script is not executable: ${UPGRADE_SCRIPT}"
+  error "   Run: chmod +x ${UPGRADE_SCRIPT}"
   exit 2
 fi
 
-info "🚀 Launching upgrade_ollama.sh..."
+info "🚀 Launching $(basename "$UPGRADE_SCRIPT")..."
 exec "$UPGRADE_SCRIPT"
